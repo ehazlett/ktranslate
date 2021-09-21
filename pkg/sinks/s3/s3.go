@@ -57,7 +57,9 @@ func NewSink(log logger.Underlying, registry go_metrics.Registry) (*S3Sink, erro
 }
 
 func (s *S3Sink) getName() string {
-	return fmt.Sprintf("%s/%d_%d%s", s.prefix, time.Now().Unix(), rand.Intn(100000), s.suffix)
+	now := time.Now()
+	dateSet := now.Format("2006/01/02/03/04/05")
+	return fmt.Sprintf("%s/%s/%d_%d%s", s.prefix, dateSet, now.Unix(), rand.Intn(100000), s.suffix)
 }
 
 func (s *S3Sink) Init(ctx context.Context, format formats.Format, compression kt.Compression, fmtr formats.Formatter) error {
