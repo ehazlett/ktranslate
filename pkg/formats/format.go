@@ -6,6 +6,7 @@ import (
 	"github.com/kentik/ktranslate/pkg/eggs/logger"
 
 	"github.com/kentik/ktranslate/pkg/formats/avro"
+	"github.com/kentik/ktranslate/pkg/formats/dynatrace"
 	"github.com/kentik/ktranslate/pkg/formats/elasticsearch"
 	"github.com/kentik/ktranslate/pkg/formats/influx"
 	"github.com/kentik/ktranslate/pkg/formats/json"
@@ -38,6 +39,7 @@ const (
 	FORMAT_NRM                  = "new_relic_metric"
 	FORMAT_SPLUNK               = "splunk"
 	FORMAT_KFLOW                = "kflow"
+	FORMAT_DYNATRACE            = "dynatrace"
 )
 
 func NewFormat(format Format, log logger.Underlying, compression kt.Compression) (Formatter, error) {
@@ -62,6 +64,8 @@ func NewFormat(format Format, log logger.Underlying, compression kt.Compression)
 		return splunk.NewFormat(log, compression)
 	case FORMAT_KFLOW:
 		return kflow.NewFormat(log, compression)
+	case FORMAT_DYNATRACE:
+		return dynatrace.NewFormat(log)
 	default:
 		return nil, fmt.Errorf("You used an unsupported format: %v.", format)
 	}
