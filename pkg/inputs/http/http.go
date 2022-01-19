@@ -14,6 +14,7 @@ import (
 	"github.com/kentik/ktranslate/pkg/eggs/kmux"
 	"github.com/kentik/ktranslate/pkg/eggs/logger"
 	"github.com/kentik/ktranslate/pkg/kt"
+	"github.com/kentik/ktranslate/pkg/tracing"
 )
 
 type KentikHttpListener struct {
@@ -36,6 +37,9 @@ const (
 )
 
 func NewHttpListener(ctx context.Context, host string, log logger.Underlying, registry go_metrics.Registry, jchfChan chan []*kt.JCHF, apic *api.KentikApi) (*KentikHttpListener, error) {
+	_, span := tracing.GetTraceSpan(context.Background(), "inputs.http")
+	defer span.End()
+
 	ks := KentikHttpListener{
 		ContextL: logger.NewContextLFromUnderlying(logger.SContext{S: "Http"}, log),
 		jchfChan: jchfChan,

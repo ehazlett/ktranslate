@@ -1,10 +1,12 @@
 package filter
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/kentik/ktranslate/pkg/kt"
+	"github.com/kentik/ktranslate/pkg/tracing"
 
 	"github.com/kentik/ktranslate/pkg/eggs/logger"
 )
@@ -73,22 +75,28 @@ func (i *FilterFlag) Set(value string) error {
 }
 
 func GetFilters(log logger.Underlying) ([]Filter, error) {
+	_, span := tracing.GetTraceSpan(context.Background(), "filters.GetFilters")
+	defer span.End()
+
 	filterSet := make([]Filter, 0)
 	for _, fd := range filters {
 		switch fd.FType {
 		case String:
+			span.AddEvent(fmt.Sprintf("adding string filter: %v", fd))
 			newf, err := newStringFilter(log, fd)
 			if err != nil {
 				return nil, err
 			}
 			filterSet = append(filterSet, newf)
 		case Int:
+			span.AddEvent(fmt.Sprintf("adding int filter: %v", fd))
 			newf, err := newIntFilter(log, fd)
 			if err != nil {
 				return nil, err
 			}
 			filterSet = append(filterSet, newf)
 		case Addr:
+			span.AddEvent(fmt.Sprintf("adding addr filter: %v", fd))
 			newf, err := newAddrFilter(log, fd)
 			if err != nil {
 				return nil, err

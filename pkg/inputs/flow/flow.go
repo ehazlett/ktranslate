@@ -12,6 +12,7 @@ import (
 	"github.com/kentik/ktranslate/pkg/api"
 	"github.com/kentik/ktranslate/pkg/eggs/logger"
 	"github.com/kentik/ktranslate/pkg/kt"
+	"github.com/kentik/ktranslate/pkg/tracing"
 
 	"github.com/netsampler/goflow2/utils"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -83,6 +84,9 @@ func NewFlowSource(ctx context.Context, proto FlowSource, maxBatchSize int, log 
 		}()
 		return kt, nil
 	case Sflow:
+		_, span := tracing.GetTraceSpan(context.Background(), "inputs.flow.sflow")
+		defer span.End()
+
 		sSF := &utils.StateSFlow{
 			Format: kt,
 			Logger: &KentikLog{l: kt},

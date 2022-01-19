@@ -26,6 +26,7 @@ import (
 	"github.com/kentik/ktranslate/pkg/rollup"
 	ss "github.com/kentik/ktranslate/pkg/sinks"
 	"github.com/kentik/ktranslate/pkg/sinks/kentik"
+	"github.com/kentik/ktranslate/pkg/tracing"
 	"github.com/kentik/ktranslate/pkg/util/enrich"
 	"github.com/kentik/ktranslate/pkg/util/gopatricia/patricia"
 	"github.com/kentik/ktranslate/pkg/util/rule"
@@ -49,6 +50,9 @@ var (
 )
 
 func NewKTranslate(config *Config, log logger.ContextL, registry go_metrics.Registry, version string, sinks string, serviceName string) (*KTranslate, error) {
+	_, span := tracing.GetTraceSpan(context.Background(), "cat.kkc")
+	defer span.End()
+
 	kc := &KTranslate{
 		log:      log,
 		registry: registry,
@@ -79,6 +83,7 @@ func NewKTranslate(config *Config, log logger.ContextL, registry go_metrics.Regi
 
 	log.Infof("Turning on %d processing threads", config.Threads)
 	for i := 0; i < config.Threads; i++ {
+		span.AddEvent(fmt.Sprintf("starting processing thread %d", i))
 		kc.alphaChans[i] = make(chan *Flow, CHAN_SLACK)
 	}
 

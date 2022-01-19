@@ -10,6 +10,7 @@ import (
 	"time"
 
 	go_metrics "github.com/kentik/go-metrics"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/kentik/ktranslate/pkg/api"
 	"github.com/kentik/ktranslate/pkg/eggs/logger"
@@ -41,6 +42,9 @@ type FlowMetric struct {
 }
 
 func NewKentikDriver(ctx context.Context, proto FlowSource, maxBatchSize int, log logger.Underlying, registry go_metrics.Registry, jchfChan chan []*kt.JCHF, apic *api.KentikApi, fields string) *KentikDriver {
+	span := trace.SpanFromContext(ctx)
+	defer span.End()
+
 	kt := KentikDriver{
 		ContextL:     logger.NewContextLFromUnderlying(logger.SContext{S: "flow"}, log),
 		jchfChan:     jchfChan,

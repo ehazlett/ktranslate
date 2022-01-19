@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/kentik/ktranslate/pkg/eggs/logger"
 	"github.com/kentik/ktranslate/pkg/formats"
 	"github.com/kentik/ktranslate/pkg/kt"
+	"github.com/kentik/ktranslate/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type S3Sink struct {
@@ -42,6 +45,13 @@ var (
 )
 
 func NewSink(log logger.Underlying, registry go_metrics.Registry) (*S3Sink, error) {
+	_, span := tracing.GetTraceSpan(context.Background(), "sinks.s3.NewSink")
+	span.SetAttributes(
+		attribute.String("bucket", *S3Bucket),
+		attribute.String("prefix", *S3Prefix),
+	)
+	defer span.End()
+
 	rand.Seed(time.Now().UnixNano())
 	return &S3Sink{
 		registry: registry,
@@ -62,11 +72,18 @@ func (s *S3Sink) getName() string {
 }
 
 func (s *S3Sink) Init(ctx context.Context, format formats.Format, compression kt.Compression, fmtr formats.Formatter) error {
+	_, span := tracing.GetTraceSpan(ctx, "sinks.s3.Init")
+	defer span.End()
+
 	rand.Seed(time.Now().UnixNano())
 	if s.Bucket == "" {
 		return fmt.Errorf("Not writing to s3 -- no bucket set, use -s3_bucket flag")
 	}
-	sess := session.Must(session.NewSession())
+	//sess := session.Must(session.NewSession())
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region:   aws.String("default"),
+		Endpoint: aws.String(os.Getenv("AWS_S3_ENDPOINT")),
+	}))
 	s.client = s3manager.NewUploader(sess)
 
 	switch compression {
@@ -87,8 +104,10 @@ func (s *S3Sink) Init(ctx context.Context, format formats.Format, compression kt
 		for {
 			select {
 			case _ = <-dumpTick.C:
+				_, span := tracing.GetTraceSpan(ctx, "sinks.s3.dumpTick")
 				s.mux.Lock()
 				if s.buf.Len() == 0 {
+					span.End()
 					s.mux.Unlock()
 					continue
 				}
@@ -96,7 +115,7 @@ func (s *S3Sink) Init(ctx context.Context, format formats.Format, compression kt
 				s.buf = bytes.NewBuffer(make([]byte, 0, ob.Len()))
 				go s.send(ctx, ob.Bytes())
 				s.mux.Unlock()
-
+				span.End()
 			case <-ctx.Done():
 				s.Infof("s3Sink Done")
 				return
@@ -108,18 +127,29 @@ func (s *S3Sink) Init(ctx context.Context, format formats.Format, compression kt
 }
 
 func (s *S3Sink) Send(ctx context.Context, payload *kt.Output) {
+	_, span := tracing.GetTraceSpan(ctx, "sinks.s3.Send")
+	span.SetAttributes(
+		attribute.String("provider", string(payload.Ctx.Provider)),
+		attribute.String("type", string(payload.Ctx.Type)),
+	)
+	defer span.End()
+
 	s.mux.Lock()
 	defer s.mux.Unlock()
 	s.buf.Write(payload.Body)
 }
 
 func (s *S3Sink) send(ctx context.Context, payload []byte) {
+	_, span := tracing.GetTraceSpan(ctx, "sinks.s3.send")
+	defer span.End()
+
 	_, err := s.client.UploadWithContext(ctx, &s3manager.UploadInput{
 		Bucket: aws.String(s.Bucket),
 		Body:   bytes.NewBuffer(payload),
 		Key:    aws.String(s.getName()),
 	})
 	if err != nil {
+		span.RecordError(err)
 		s.Errorf("Cannot upload to s3: %v", err)
 		s.metrics.DeliveryErr.Mark(1)
 	} else {

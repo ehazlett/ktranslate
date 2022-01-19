@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/kentik/ktranslate/pkg/cat/auth"
 	"github.com/kentik/ktranslate/pkg/formats"
 	"github.com/kentik/ktranslate/pkg/kt"
+	"github.com/kentik/ktranslate/pkg/tracing"
 
 	go_metrics "github.com/kentik/go-metrics"
 	"github.com/kentik/ktranslate/pkg/eggs/baseserver"
@@ -24,40 +26,42 @@ import (
 func main() {
 	var (
 		// runtime options
-		listenIPPort   = flag.String("listen", "127.0.0.1:8081", "IP:Port to listen on")
-		mappingFile    = flag.String("mapping", "", "Mapping file to use for enums")
-		udrs           = flag.String("udrs", "", "UDR mapping file")
-		geo            = flag.String("geo", "", "Geo mapping file")
-		asn            = flag.String("asn", "", "Asn mapping file")
-		dns            = flag.String("dns", "", "Resolve IPs at this ip:port")
-		threads        = flag.Int("threads", 0, "Number of threads to run for processing")
-		threadsInput   = flag.Int("input_threads", 0, "Number of threads to run for input processing")
-		maxThreads     = flag.Int("max_threads", 0, "Dynamically grow threads up to this number")
-		format         = flag.String("format", "flat_json", "Format to convert kflow to: (json|flat_json|avro|netflow|influx|prometheus|new_relic|new_relic_metric|splunk|elasticsearch|kflow)")
-		formatRollup   = flag.String("format_rollup", "", "Format to convert rollups to: (json|avro|netflow|influx|prometheus|new_relic|new_relic_metric|splunk|elasticsearch|kflow)")
-		compression    = flag.String("compression", "none", "compression algo to use (none|gzip|snappy|deflate|null)")
-		sinks          = flag.String("sinks", "stdout", "List of sinks to send data to. Options: (kafka|stdout|new_relic|kentik|net|http|splunk|prometheus|file|s3|gcloud)")
-		maxFlows       = flag.Int("max_flows_per_message", 10000, "Max number of flows to put in each emitted message")
-		dumpRollups    = flag.Int("rollup_interval", 0, "Export timer for rollups in seconds")
-		rollupAndAlpha = flag.Bool("rollup_and_alpha", false, "Send both rollups and alpha inputs to sinks")
-		sample         = flag.Int("sample_rate", kt.LookupEnvInt("KENTIK_SAMPLE_RATE", 0), "Sampling rate to use. 1 -> 1:1 sampling, 2 -> 1:2 sampling and so on.")
-		sampleMin      = flag.Int("max_before_sample", 1, "Only sample when a set of inputs is at least this many")
-		apiDevices     = flag.String("api_devices", "", "json file containing dumy devices to use for the stub Kentik API")
-		snmpFile       = flag.String("snmp", "", "yaml file containing snmp config to use")
-		snmpDisco      = flag.Bool("snmp_discovery", false, "If true, try to discover snmp devices on this network as configured.")
-		kentikEmail    = flag.String("kentik_email", "", "Kentik email to use for API calls")
-		apiRoot        = flag.String("api_root", "https://api.kentik.com", "API url prefix. If not set, defaults to https://api.kentik.com")
-		kentikPlan     = flag.Int("kentik_plan", 0, "Kentik plan id to use for creating devices")
-		sslCertFile    = flag.String("ssl_cert_file", "", "SSL Cert file to use for serving HTTPS traffic")
-		sslKeyFile     = flag.String("ssl_key_file", "", "SSL Key file to use for serving HTTPS traffic")
-		tagMapType     = flag.String("tag_map_type", "", "type of mapping to use for tag values. file|null")
-		vpcSource      = flag.String("vpc", kt.LookupEnvString("KENTIK_VPC", ""), "Run VPC Flow Ingest")
-		flowSource     = flag.String("nf.source", "", "Run NetFlow Ingest Directly. Valid values here are netflow5|netflow9|ipfix|sflow")
-		teeLog         = flag.Bool("tee_logs", false, "Tee log messages to sink")
-		appMap         = flag.String("application_map", "", "File containing custom application mappings")
-		syslog         = flag.String("syslog.source", "", "Run Syslog Server at this IP:Port or unix socket.")
-		httpInput      = flag.Bool("http.source", false, "Listen for content sent via http.")
-		enricher       = flag.String("enricher", "", "Send data to this http url for enrichment.")
+		listenIPPort     = flag.String("listen", "127.0.0.1:8081", "IP:Port to listen on")
+		mappingFile      = flag.String("mapping", "", "Mapping file to use for enums")
+		udrs             = flag.String("udrs", "", "UDR mapping file")
+		geo              = flag.String("geo", "", "Geo mapping file")
+		asn              = flag.String("asn", "", "Asn mapping file")
+		dns              = flag.String("dns", "", "Resolve IPs at this ip:port")
+		threads          = flag.Int("threads", 0, "Number of threads to run for processing")
+		threadsInput     = flag.Int("input_threads", 0, "Number of threads to run for input processing")
+		maxThreads       = flag.Int("max_threads", 0, "Dynamically grow threads up to this number")
+		format           = flag.String("format", "flat_json", "Format to convert kflow to: (json|flat_json|avro|netflow|influx|prometheus|new_relic|new_relic_metric|splunk|elasticsearch|kflow)")
+		formatRollup     = flag.String("format_rollup", "", "Format to convert rollups to: (json|avro|netflow|influx|prometheus|new_relic|new_relic_metric|splunk|elasticsearch|kflow)")
+		compression      = flag.String("compression", "none", "compression algo to use (none|gzip|snappy|deflate|null)")
+		sinks            = flag.String("sinks", "stdout", "List of sinks to send data to. Options: (kafka|stdout|new_relic|kentik|net|http|splunk|prometheus|file|s3|gcloud)")
+		maxFlows         = flag.Int("max_flows_per_message", 10000, "Max number of flows to put in each emitted message")
+		dumpRollups      = flag.Int("rollup_interval", 0, "Export timer for rollups in seconds")
+		rollupAndAlpha   = flag.Bool("rollup_and_alpha", false, "Send both rollups and alpha inputs to sinks")
+		sample           = flag.Int("sample_rate", kt.LookupEnvInt("KENTIK_SAMPLE_RATE", 0), "Sampling rate to use. 1 -> 1:1 sampling, 2 -> 1:2 sampling and so on.")
+		sampleMin        = flag.Int("max_before_sample", 1, "Only sample when a set of inputs is at least this many")
+		apiDevices       = flag.String("api_devices", "", "json file containing dumy devices to use for the stub Kentik API")
+		snmpFile         = flag.String("snmp", "", "yaml file containing snmp config to use")
+		snmpDisco        = flag.Bool("snmp_discovery", false, "If true, try to discover snmp devices on this network as configured.")
+		kentikEmail      = flag.String("kentik_email", "", "Kentik email to use for API calls")
+		apiRoot          = flag.String("api_root", "https://api.kentik.com", "API url prefix. If not set, defaults to https://api.kentik.com")
+		kentikPlan       = flag.Int("kentik_plan", 0, "Kentik plan id to use for creating devices")
+		sslCertFile      = flag.String("ssl_cert_file", "", "SSL Cert file to use for serving HTTPS traffic")
+		sslKeyFile       = flag.String("ssl_key_file", "", "SSL Key file to use for serving HTTPS traffic")
+		tagMapType       = flag.String("tag_map_type", "", "type of mapping to use for tag values. file|null")
+		vpcSource        = flag.String("vpc", kt.LookupEnvString("KENTIK_VPC", ""), "Run VPC Flow Ingest")
+		flowSource       = flag.String("nf.source", "", "Run NetFlow Ingest Directly. Valid values here are netflow5|netflow9|ipfix|sflow")
+		teeLog           = flag.Bool("tee_logs", false, "Tee log messages to sink")
+		appMap           = flag.String("application_map", "", "File containing custom application mappings")
+		syslog           = flag.String("syslog.source", "", "Run Syslog Server at this IP:Port or unix socket.")
+		httpInput        = flag.Bool("http.source", false, "Listen for content sent via http.")
+		enricher         = flag.String("enricher", "", "Send data to this http url for enrichment.")
+		traceEndpoint    = flag.String("trace-endpoint", "", "OpenTelemetry endpoint")
+		traceEnvironment = flag.String("trace-environment", "default", "OpenTelemetry environment")
 	)
 
 	metricsChan := make(chan []*kt.JCHF, cat.CHAN_SLACK)
@@ -79,6 +83,15 @@ func main() {
 
 	prefix := fmt.Sprintf("KTranslate")
 	lc := logger.NewContextLFromUnderlying(logger.SContext{S: prefix}, bs.Logger)
+
+	if ep := *traceEndpoint; ep != "" {
+		lc.Infof("configuring telemetry tracing to %s", ep)
+		tp, err := tracing.NewProvider(ep, "ktranslate", *traceEnvironment)
+		if err != nil {
+			bs.Fail(fmt.Sprintf("error configuring tracing: %s", err))
+		}
+		defer tp.Shutdown(context.Background())
+	}
 
 	conf := cat.Config{
 		Listen:            *listenIPPort,
