@@ -12,6 +12,7 @@ import (
 	"github.com/kentik/ktranslate/pkg/formats"
 	"github.com/kentik/ktranslate/pkg/inputs/flow"
 	"github.com/kentik/ktranslate/pkg/inputs/http"
+	"github.com/kentik/ktranslate/pkg/inputs/otel"
 	"github.com/kentik/ktranslate/pkg/inputs/syslog"
 	"github.com/kentik/ktranslate/pkg/inputs/vpc"
 	"github.com/kentik/ktranslate/pkg/kt"
@@ -70,6 +71,7 @@ type Config struct {
 	VpcSource         vpc.CloudSource
 	FlowSource        flow.FlowSource
 	SyslogSource      string
+	OtelSource        string
 	LogTee            chan string
 	MetricsChan       chan []*kt.JCHF
 	AppMap            string
@@ -108,6 +110,7 @@ type KTranslate struct {
 	nfs          *flow.KentikDriver
 	rule         *rule.RuleSet
 	syslog       *syslog.KentikSyslog
+	otel         *otel.KentikOtelListener
 	http         *http.KentikHttpListener
 	enricher     *enrich.Enricher
 }

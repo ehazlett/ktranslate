@@ -18,6 +18,7 @@ import (
 	"github.com/kentik/ktranslate/pkg/formats"
 	"github.com/kentik/ktranslate/pkg/inputs/flow"
 	ihttp "github.com/kentik/ktranslate/pkg/inputs/http"
+	"github.com/kentik/ktranslate/pkg/inputs/otel"
 	"github.com/kentik/ktranslate/pkg/inputs/snmp"
 	"github.com/kentik/ktranslate/pkg/inputs/syslog"
 	"github.com/kentik/ktranslate/pkg/inputs/vpc"
@@ -674,6 +675,15 @@ func (kc *KTranslate) Run(ctx context.Context) error {
 			return err
 		}
 		kc.syslog = ss
+	}
+
+	if kc.config.OtelSource != "" {
+		assureInput()
+		ol, err := otel.NewOtelListener(ctx, kc.config.OtelSource, kc.log.GetLogger().GetUnderlyingLogger(), kc.registry, kc.inputChan, kc.apic)
+		if err != nil {
+			return err
+		}
+		kc.otel = ol
 	}
 
 	// If we're looking for json over http
