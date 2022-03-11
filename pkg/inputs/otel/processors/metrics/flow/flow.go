@@ -40,17 +40,53 @@ func NewMetricFlowProcessor(ch chan []*kt.JCHF, processedCh chan int, l *zap.Log
 
 func (p *metricFlowProcessor) ConsumeMetrics(ctx context.Context, md pdata.Metrics) error {
 	p.logger.Debug("ConsumeMetrics")
+	jchf := []*kt.JCHF{}
 	rm := md.ResourceMetrics()
 	for i := 0; i < rm.Len(); i++ {
 		ilm := rm.At(i).InstrumentationLibraryMetrics()
 		for x := 0; x < ilm.Len(); x++ {
 			metrics := ilm.At(x).Metrics()
+			ts := int64(0)
+			metricData := make(map[string]int64)
 			for y := 0; y < metrics.Len(); y++ {
 				m := metrics.At(y)
-				p.logger.Debug("metric", zap.String("name", m.Name()), zap.String("desc", m.Description()))
+				val := int64(0)
+				switch m.DataType() {
+				case pdata.MetricDataTypeGauge:
+					dataPoints := m.Gauge().DataPoints()
+					for mdp := 0; mdp < dataPoints.Len(); mdp++ {
+						dp := dataPoints.At(mdp)
+						ts = int64(dp.Timestamp())
+						val = dp.IntVal()
+						break
+					}
+				case pdata.MetricDataTypeSum:
+					dataPoints := m.Sum().DataPoints()
+					for mdp := 0; mdp < dataPoints.Len(); mdp++ {
+						dp := dataPoints.At(mdp)
+						ts = int64(dp.Timestamp())
+						val = dp.IntVal()
+						break
+					}
+				default:
+					p.logger.Warn("unsupported metric data type", zap.String("type", m.DataType().String()))
+					continue
+				}
+
+				p.logger.Debug("metric", zap.String("name", m.Name()), zap.Int64("value", val))
+
+				metricData[m.Name()] = val
 			}
+
+			j := kt.NewJCHF()
+			j.Timestamp = ts
+			j.EventType = "otelMetric"
+			j.CustomBigInt = metricData
+			jchf = append(jchf, j)
 		}
 	}
+
+	p.jchfCh <- jchf
 	p.processedCh <- md.MetricCount()
 	return nil
 }
