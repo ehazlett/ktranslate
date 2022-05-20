@@ -1,3 +1,5 @@
+PACKAGES=$(shell go list ./... | grep -v -e /vendor/)
+
 .PHONY: all
 all:
 	go generate ./cmd/version
@@ -28,6 +30,10 @@ ktranslate:
 .PHONY: clean
 clean:
 	rm -f bin/ktranslate
+
+.PHONY: protos
+protos:
+	@echo ${PACKAGES} | xargs protobuild -quiet
 
 .PHONY: generate
 generate:

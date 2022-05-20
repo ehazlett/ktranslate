@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package com.kentiklabs.ktranslate.processors.api.v1;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/kentik/ktranslate/pkg/processors/api/v1;v1";
+option (gogoproto.sizer_all) = true;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+service Processor {
+        rpc Info(InfoRequest) returns (InfoResponse);
+        rpc Process(ProcessRequest) returns (ProcessResponse);
+}
+
+message InfoRequest {}
+
+message InfoResponse {
+        string name = 1;
+        string version = 2;
+}
+
+message JCHF {
+        int64 timestamp = 1;
+        uint32 dst_as = 2 [(gogoproto.customname) = "DstAs"];
+        string dst_geo = 3 [(gogoproto.customname) = "DstGeo"];
+        string dst_addr = 4;
+        string src_addr = 5;
+        uint32 l4_dst_port = 6;
+        uint32 l4_src_port = 7;
+        string protocol = 8;
+        string device_name = 9;
+        uint32 src_as = 10 [(gogoproto.customname) = "SrcAs"];
+        string src_geo = 11;
+        uint64 in_bytes = 12;
+        uint64 in_pkts = 13;
+        uint64 out_bytes = 14;
+        uint64 out_pkts = 15;
+        string src_geo_region = 16;
+        string dst_geo_region = 17;
+        string src_geo_city = 18;
+        string dst_geo_city = 19;
+        string src_eth_mac = 20;
+        string dst_eth_mac = 21;
+        string input_int_desc = 22;
+        string output_int_desc = 23;
+        string input_int_alias = 24;
+        string output_int_alias = 25;
+        string input_interface_ip = 26 [(gogoproto.customname) = "InputInterfaceIP"];
+        string output_interface_ip = 27 [(gogoproto.customname) = "OutputInterfaceIP"];
+        string event_type = 28;
+        uint32 vlan_in = 29;
+        uint32 vlan_out = 30;
+}
+
+message ProcessRequest {
+        JCHF jchf = 1 [(gogoproto.customname) = "JCHF"];
+}
+
+message ProcessResponse {
+        map<string, string> annotations = 1;
+}

@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kentik/ktranslate/pkg/api"
@@ -23,6 +24,7 @@ import (
 	"github.com/kentik/ktranslate/pkg/inputs/vpc"
 	"github.com/kentik/ktranslate/pkg/kt"
 	"github.com/kentik/ktranslate/pkg/maps"
+	"github.com/kentik/ktranslate/pkg/processors"
 	"github.com/kentik/ktranslate/pkg/rollup"
 	ss "github.com/kentik/ktranslate/pkg/sinks"
 	"github.com/kentik/ktranslate/pkg/sinks/kentik"
@@ -30,6 +32,8 @@ import (
 	"github.com/kentik/ktranslate/pkg/util/gopatricia/patricia"
 	"github.com/kentik/ktranslate/pkg/util/resolv"
 	"github.com/kentik/ktranslate/pkg/util/rule"
+
+	processorapi "github.com/kentik/ktranslate/pkg/processors/api/v1"
 
 	"github.com/judwhite/go-svc"
 	go_metrics "github.com/kentik/go-metrics"
@@ -193,6 +197,25 @@ func NewKTranslate(config *Config, log logger.ContextL, registry go_metrics.Regi
 
 	// Get some randomness
 	rand.Seed(time.Now().UnixNano())
+
+	// load processors
+	procs := map[string]*processors.Client{}
+	processorAddrs := strings.Split(config.ProcessorSources, ",")
+	for _, addr := range processorAddrs {
+		p, err := processors.NewClient(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		pInfo, err := p.Info(context.Background(), &processorapi.InfoRequest{})
+		if err != nil {
+			return nil, err
+		}
+		procs[pInfo.Name] = p
+		kc.log.Infof("loaded processor %s (%s)", pInfo.Name, pInfo.Version)
+	}
+
+	kc.processors = procs
 
 	return kc, nil
 }
@@ -381,6 +404,15 @@ func (kc *KTranslate) handleInput(ctx context.Context, msgs []*kt.JCHF, serBuf [
 	if kc.geo != nil || kc.asn != nil {
 		kc.doEnrichments(ctx, citycache, regioncache, msgs)
 	}
+
+	// TODO: processors
+	wg := &sync.WaitGroup{}
+	for _, m := range msgs {
+		wg.Add(1)
+		go kc.processMessage(ctx, m, wg)
+	}
+
+	wg.Wait()
 
 	// If we are filtering, cut any out here.
 	if kc.doFilter {
@@ -701,6 +733,33 @@ func (kc *KTranslate) Run(ctx context.Context) error {
 	return kc.sendToSinks(ctx)
 }
 
+func (kc *KTranslate) processMessage(ctx context.Context, m *kt.JCHF, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for name, p := range kc.processors {
+		kc.log.Infof("applying processor %s", name)
+		resp, err := p.Process(ctx, &processorapi.ProcessRequest{
+			JCHF: jchfToProto(m),
+		})
+		if err != nil {
+			kc.log.Errorf("error applying processor %s: %s", name, err)
+			continue
+		}
+
+		if m.Annotations == nil {
+			m.Annotations = map[string]string{}
+		}
+
+		for k, v := range resp.Annotations {
+			m.Annotations[k] = v
+		}
+
+		//kc.log.Debugf("processor %s response: %+v", name, resp)
+		data, _ := json.Marshal(m)
+		kc.log.Debugf("\n%s\n", string(data))
+	}
+}
+
 // These are needed in case we are running under windows.
 func (kc *KTranslate) Init(env svc.Environment) error {
 	return nil
@@ -714,4 +773,38 @@ func (kc *KTranslate) Start() error {
 func (kc *KTranslate) Stop() error {
 	kc.cleanup()
 	return nil
+}
+
+func jchfToProto(m *kt.JCHF) *processorapi.JCHF {
+	return &processorapi.JCHF{
+		Timestamp:         m.Timestamp,
+		DstAs:             m.DstAs,
+		DstGeo:            m.DstGeo,
+		DstAddr:           m.DstAddr,
+		SrcAddr:           m.SrcAddr,
+		L4DstPort:         m.L4DstPort,
+		L4SrcPort:         m.L4SrcPort,
+		Protocol:          m.Protocol,
+		DeviceName:        m.DeviceName,
+		SrcAs:             m.SrcAs,
+		SrcGeo:            m.SrcGeo,
+		InBytes:           m.InBytes,
+		InPkts:            m.InPkts,
+		OutBytes:          m.OutBytes,
+		OutPkts:           m.OutPkts,
+		SrcGeoRegion:      m.SrcGeoRegion,
+		DstGeoRegion:      m.DstGeoRegion,
+		SrcGeoCity:        m.SrcGeoCity,
+		DstGeoCity:        m.DstGeoCity,
+		SrcEthMac:         m.SrcEthMac,
+		DstEthMac:         m.DstEthMac,
+		InputIntDesc:      m.InputIntDesc,
+		OutputIntDesc:     m.OutputIntDesc,
+		InputIntAlias:     m.InputIntAlias,
+		OutputIntAlias:    m.OutputIntAlias,
+		InputInterfaceIP:  m.InputInterfaceIP,
+		OutputInterfaceIP: m.OutputInterfaceIP,
+		VlanIn:            m.VlanIn,
+		VlanOut:           m.VlanOut,
+	}
 }

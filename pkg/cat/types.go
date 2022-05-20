@@ -5,6 +5,7 @@ import (
 
 	go_metrics "github.com/kentik/go-metrics"
 	"github.com/kentik/ktranslate/pkg/eggs/logger"
+	"github.com/kentik/ktranslate/pkg/processors"
 
 	"github.com/kentik/ktranslate/pkg/api"
 	"github.com/kentik/ktranslate/pkg/cat/auth"
@@ -75,6 +76,7 @@ type Config struct {
 	AppMap            string
 	HttpInput         bool
 	Enricher          string
+	ProcessorSources  string
 }
 
 type KTranslate struct {
@@ -110,6 +112,7 @@ type KTranslate struct {
 	syslog       *syslog.KentikSyslog
 	http         *http.KentikHttpListener
 	enricher     *enrich.Enricher
+	processors   map[string]*processors.Client
 }
 
 type CustomMapper struct {

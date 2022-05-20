@@ -120,6 +120,7 @@ func (f *ElasticsearchFormat) From(raw *kt.Output) ([]map[string]interface{}, er
 
 	values := make([]map[string]interface{}, len(msgs))
 	for i, m := range msgs {
+		fmt.Printf("DEBUG: %+v\n", m)
 		m.SetMap()
 		values[i] = m.ToMap()
 	}

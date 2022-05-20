@@ -176,6 +176,7 @@ type JCHF struct {
 	CustomBigInt            map[string]int64  `json:"custom_bigint,omitempty"`
 	EventType               string            `json:"eventType"`
 	Provider                Provider          `json:"provider"` // Entity type for this data.
+	Annotations             map[string]string `json:"annotations,omitempty"`
 	avroSet                 map[string]interface{}
 	hasSetAvro              bool
 	CustomMetrics           map[string]MetricInfo          `json:"-"`
@@ -307,6 +308,7 @@ func (j *JCHF) ToMap() map[string]interface{} {
 	j.avroSet["custom_bigint"] = j.CustomBigInt
 	j.avroSet["eventType"] = j.EventType
 	j.avroSet["provider"] = j.Provider
+	j.avroSet["annotations"] = j.Annotations
 	j.hasSetAvro = true
 	return j.avroSet
 }
@@ -319,6 +321,7 @@ func (j *JCHF) SetMap() {
 	j.CustomMetrics = map[string]MetricInfo{}
 	j.CustomTables = map[string]DeviceTableMetadata{}
 	j.MatchAttr = map[string]*regexp.Regexp{}
+	j.Annotations = map[string]string{}
 }
 
 func (j *JCHF) SetIFPorts(p IfaceID) *JCHF {
