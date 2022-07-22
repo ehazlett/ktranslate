@@ -2,7 +2,6 @@ package file
 
 import (
 	"bufio"
-	"flag"
 	"os"
 	"strconv"
 	"strings"
@@ -16,12 +15,8 @@ type FileTagMapper struct {
 	tags map[uint32][2]string
 }
 
-var (
-	tags = flag.String("tag_map", "", "CSV file mapping tag ids to strings")
-)
-
-func NewFileTagMapper(log logger.Underlying) (*FileTagMapper, error) {
-	f, err := os.Open(*tags)
+func NewFileTagMapper(cfgPath string, log logger.Underlying) (*FileTagMapper, error) {
+	f, err := os.Open(cfgPath)
 	if err != nil {
 		return nil, err
 	}

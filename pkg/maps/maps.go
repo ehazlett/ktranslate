@@ -17,10 +17,10 @@ type TagMapper interface {
 	LookupTagValue(kt.Cid, uint32, string) (string, string, bool)
 }
 
-func LoadMapper(mtype Mapper, log logger.Underlying) (TagMapper, error) {
+func LoadMapper(cfgPath string, mtype Mapper, log logger.Underlying) (TagMapper, error) {
 	switch mtype {
 	case FileMapper:
-		return file.NewFileTagMapper(log)
+		return file.NewFileTagMapper(cfgPath, log)
 	default:
 		return &NullType{ContextL: logger.NewContextLFromUnderlying(logger.SContext{S: "nullMapper"}, log)}, nil
 	}

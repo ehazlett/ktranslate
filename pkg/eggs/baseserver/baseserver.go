@@ -175,7 +175,6 @@ func (bs *BaseServer) ParseFlags() {
 	flagVersion := flag.CommandLine.Bool("v", false, "Show version and build information")
 
 	flag.CommandLine.StringVar(&bs.ServiceName, "service_name", bs.ServiceName, "Service identifier")
-	flag.CommandLine.StringVar(&bs.LogLevel, "log_level", bs.LogLevel, "Logging Level")
 	flag.CommandLine.BoolVar(&bs.LogToStdout, "stdout", bs.LogToStdout, "Log to stdout")
 	flag.CommandLine.StringVar(&bs.MetricsDestination, "metrics", bs.MetricsDestination, "Metrics Configuration. none|syslog|stderr|graphite:127.0.0.1:2003")
 	flag.CommandLine.StringVar(&bs.MetaListen, "metalisten", bs.MetaListen, "HTTP interface and port to bind on")

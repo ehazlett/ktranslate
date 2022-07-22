@@ -122,7 +122,7 @@ func NewKTranslate(config *Config, log logger.ContextL, registry go_metrics.Regi
 		kc.log.Infof("Loaded %d udr and %d subtype mappings with %d udrs total", len(m.UDRs), len(m.Subtypes), udrs)
 	}
 
-	m, err := maps.LoadMapper(config.TagMapType, log.GetLogger().GetUnderlyingLogger())
+	m, err := maps.LoadMapper(config.TagMapConfigFile, config.TagMapType, log.GetLogger().GetUnderlyingLogger())
 	if err != nil {
 		kc.log.Errorf("There was an error when opening the tag service: %v.", err)
 		return nil, err

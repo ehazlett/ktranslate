@@ -75,6 +75,7 @@ type Config struct {
 	AppMap            string
 	HttpInput         bool
 	Enricher          string
+	TagMapConfigFile  string
 }
 
 type KTranslate struct {

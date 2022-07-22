@@ -48,9 +48,11 @@ RUN ln -sv /etc/ktranslate/mibs.db /etc/mib.db ; ls -lah /etc/mib.db/
 COPY --from=build /src/bin/ktranslate /usr/local/bin/ktranslate
 COPY --from=build /usr/sbin/setcap /usr/sbin/setcap
 COPY --from=build /usr/lib/libcap.so.2 /usr/lib/libcap.so.2
+COPY .docker/config.toml /etc/ktranslate/config.toml
 RUN setcap cap_net_raw=+ep /usr/local/bin/ktranslate
 
 EXPOSE 8082
 
 USER ktranslate
-ENTRYPOINT ["ktranslate", "-listen", "off", "-mapping", "/etc/ktranslate/config.json", "-geo", "/etc/ktranslate/GeoLite2-Country.mmdb", "-udrs", "/etc/ktranslate/udr.csv", "-api_devices", "/etc/ktranslate/devices.json", "-asn", "/etc/ktranslate/GeoLite2-ASN.mmdb", "-log_level", "info"]
+#ENTRYPOINT ["ktranslate", "-listen", "off", "-mapping", "/etc/ktranslate/config.json", "-geo", "/etc/ktranslate/GeoLite2-Country.mmdb", "-udrs", "/etc/ktranslate/udr.csv", "-api_devices", "/etc/ktranslate/devices.json", "-asn", "/etc/ktranslate/GeoLite2-ASN.mmdb", "-log_level", "info"]
+ENTRYPOINT ["ktranslate", "-config", "/etc/ktranslate/config.toml", "-log_level", "info"]
