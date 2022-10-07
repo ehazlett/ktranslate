@@ -234,6 +234,7 @@ type Config struct {
 	EnableTeeLogs       bool
 	EnableHTTPInput     bool
 	EnricherURL         string
+	RemoteConfigLoader  string
 
 	// pkg/maps/file
 	TagMapFile string
@@ -322,6 +323,7 @@ func DefaultConfig() *Config {
 		EnableTeeLogs:       false,
 		EnableHTTPInput:     false,
 		EnricherURL:         "",
+		RemoteConfigLoader:  "",
 		TagMapFile:          "",
 		NetflowFormat: &NetflowFormatConfig{
 			Version: "ipfix",

@@ -1,10 +1,12 @@
 version: "3.9"
 services:
-  elasticsearch:
-    image: elasticsearch:7.14.2
+  prometheus:
+    image: prom/prometheus:latest
     restart: always
-    environment:
-      - "discovery.type=single-node"
+    volumes:
+      - type: bind
+        source: ./prometheus.yml
+        target: /etc/prometheus/prometheus.yml
     healthcheck:
       test: ["CMD", "curl", "localhost:9090"]
       interval: 10s
@@ -12,33 +14,10 @@ services:
       retries: 30
       start_period: 10s
     ports:
-      - 9200:9200
-
-  elasticsearch-init:
-    image: ehazlett/curl:latest
-    restart: on-failure
-    entrypoint: ["/bin/sh"]
-    command:
-      - "-c"
-      - "wait-for-it.sh -h elasticsearch -p 9200 -- curl -XPUT http://elasticsearch:9200/kentik"
-    depends_on:
-      - elasticsearch
-
-  kibana:
-    image: kibana:7.14.2
+      - 9090:9090
+  snmpd:
+    image: ehazlett/snmpd:latest
     restart: always
-    environment:
-      - ELASTICSEARCH_HOSTS=["http://elasticsearch:9200"]
-    healthcheck:
-      test: ["CMD", "curl", "localhost:5601"]
-      interval: 10s
-      timeout: 1s
-      retries: 30
-      start_period: 10s
-    ports:
-      - 5601:5601
-    depends_on:
-      - elasticsearch
 
   ktranslate:
     image: kentik/ktranslate:latest
@@ -46,7 +25,7 @@ services:
       - sh
       - -euc
       - |
-        cat <<EOF > /tmp/ktranslate.yaml
+        cat <<EOF > /tmp/ktranslate.toml
         listenaddr: "127.0.0.1:8081"
         udrsfile: "/etc/ktranslate/udr.csv"
         geofile: "/etc/ktranslate/GeoLite2-Country.mmdb"
@@ -54,9 +33,9 @@ services:
         processingthreads: 1
         inputthreads: 1
         maxthreads: 1
-        format: ["elasticsearch"]
+        format: "prometheus"
         compression: "none"
-        sinks: "http"
+        sinks: ["prometheus"]
         maxflowspermessage: 10000
         rollupinterval: 0
         rollupandalpha: false
@@ -67,16 +46,14 @@ services:
         apibaseurl: "https://api.kentik.com"
         enableteelogs: false
         enablehttpinput: true
+        remoteconfigloader: "local:file:///tmp/kt.yml"
         filters: []
 
         netflowformat:
           version: "netflow5"
 
-        httpsink:
-          target: "http://elasticsearch:9200/kentik/_bulk"
-          headers: ["Content-Type:application/json"]
-          insecureskipverify: false
-          timeoutinseconds: 30
+        prometheussink:
+          listenaddr: ":9080"
 
         server:
           servicename: "ktranslate"
@@ -100,23 +77,33 @@ services:
           messagefields: "TimeReceived,SamplingRate,Bytes,Packets,SrcAddr,DstAddr,Proto,SrcPort,DstPort,InIf,OutIf,SrcVlan,DstVlan,TCPFlags,SrcAS,DstAS,Type,SamplerAddress"
           prometheuslistenaddr: ""
           mappingfile: ""
+        snmpinput:
+          enable: true
+          snmpfile: "/tmp/snmp.yml"
+          dumpmibs: false
+          flowonly: false
+          jsontoyaml: ""
+          walktarget: ""
+          walkoid: ".1.3.6.1.2.1"
+          walkformat: ""
+          outputfile: ""
+          discoveryintervalminutes: 0
+          discoveryonstart: false
+          validatemibs: false
+          pollnowtarget: ""
         EOF
-        ktranslate --config /tmp/ktranslate.yaml
+        ktranslate --config /tmp/ktranslate.toml
+    volumes:
+      - type: bind
+        source: ./kt.yml
+        target: /tmp/kt.yml
+      - type: bind
+        source: ./snmp.yml
+        target: /tmp/snmp.yml
     restart: always
     ports:
-      - 9090:9090
+      - 9080:9080
       - 9995:9995/udp
     depends_on:
-      - elasticsearch
-      - elasticsearch-init
-
-  nflow:
-    image: ehazlett/nflow-generator:latest
-    restart: always
-    command:
-      - -t
-      - ktranslate
-      - -p
-      - "9995"
-    depends_on:
-      - ktranslate
+      - prometheus
+      - snmpd

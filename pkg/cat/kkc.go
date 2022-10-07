@@ -11,6 +11,7 @@ import (
 	"github.com/kentik/ktranslate"
 	"github.com/kentik/ktranslate/pkg/api"
 	"github.com/kentik/ktranslate/pkg/cat/auth"
+	kconfig "github.com/kentik/ktranslate/pkg/config"
 	"github.com/kentik/ktranslate/pkg/eggs/baseserver"
 	"github.com/kentik/ktranslate/pkg/eggs/kmux"
 	"github.com/kentik/ktranslate/pkg/eggs/logger"
@@ -66,12 +67,13 @@ func NewKTranslate(config *ktranslate.Config, log logger.ContextL, registry go_m
 			InputQLen:    go_metrics.GetOrRegisterGauge("inputq_len^force=true", registry),
 			OutputQLen:   go_metrics.GetOrRegisterGauge("outputq_len^force=true", registry),
 		},
-		alphaChans:  make([]chan *Flow, config.ProcessingThreads),
-		jchfChans:   make([]chan *kt.JCHF, config.ProcessingThreads),
-		metricsChan: metricsChan,
-		logTee:      logTee,
-		msgsc:       make(chan *kt.Output, 60),
-		tooBig:      make(chan int, CHAN_SLACK),
+		alphaChans:       make([]chan *Flow, config.ProcessingThreads),
+		jchfChans:        make([]chan *kt.JCHF, config.ProcessingThreads),
+		metricsChan:      metricsChan,
+		logTee:           logTee,
+		msgsc:            make(chan *kt.Output, 60),
+		tooBig:           make(chan int, CHAN_SLACK),
+		configReloadChan: make(chan *ktranslate.Config),
 	}
 
 	if v := config.API.DeviceFile; v != "" {
@@ -186,6 +188,18 @@ func NewKTranslate(config *ktranslate.Config, log logger.ContextL, registry go_m
 		kc.enricher = en
 	}
 
+	if v := config.RemoteConfigLoader; v != "" {
+		providerCh := make(chan *ktranslate.Config)
+		p, err := kconfig.NewProvider(v, providerCh)
+		if err != nil {
+			return nil, err
+		}
+
+		go kc.configReloadHandler(providerCh)
+
+		go kc.configLoader(p)
+	}
+
 	if len(kc.sinks) == 0 {
 		return nil, fmt.Errorf("No sinks set")
 	}
@@ -197,6 +211,39 @@ func NewKTranslate(config *ktranslate.Config, log logger.ContextL, registry go_m
 	rand.Seed(time.Now().UnixNano())
 
 	return kc, nil
+}
+
+func (kc *KTranslate) configReloadHandler(ch chan *ktranslate.Config) {
+	for {
+		cfg := <-ch
+		kc.log.Infof("config reload requested: %+v", cfg)
+		// TODO: handle internal config reloading
+		kc.configReloadChan <- cfg
+	}
+}
+
+func (kc *KTranslate) configLoader(p kconfig.ConfigProvider) {
+	// TODO: make configurable?
+	t := time.NewTicker(10 * time.Second)
+	for range t.C {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		cfg, err := p.GetConfig(ctx)
+		if err != nil {
+			kc.log.Errorf("error getting config: %s", err)
+			cancel()
+			continue
+		}
+		kc.log.Infof("config received: %+v", cfg)
+
+		if err := p.UpdateConfig(ctx, cfg); err != nil {
+			kc.log.Errorf("error getting config: %s", err)
+			cancel()
+			continue
+		}
+		kc.log.Infof("config updated: %+v", kc.config)
+
+		cancel()
+	}
 }
 
 // nolint: errcheck
@@ -640,7 +687,7 @@ func (kc *KTranslate) Run(ctx context.Context) error {
 		}
 		assureInput()
 		kc.metrics.SnmpDeviceData = kt.NewSnmpMetricSet(kc.registry)
-		err := snmp.StartSNMPPolls(ctx, kc.inputChan, kc.metrics.SnmpDeviceData, kc.registry, kc.apic, kc.log, kc.config.SNMPInput, kc.resolver)
+		err := snmp.StartSNMPPolls(ctx, kc.inputChan, kc.metrics.SnmpDeviceData, kc.registry, kc.apic, kc.log, kc.config.SNMPInput, kc.resolver, kc.configReloadChan)
 		if err != nil {
 			return err
 		}

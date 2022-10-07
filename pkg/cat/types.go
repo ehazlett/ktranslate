@@ -44,40 +44,41 @@ const (
 )
 
 type KTranslate struct {
-	log          logger.ContextL
-	config       *ktranslate.Config
-	registry     go_metrics.Registry
-	metrics      *KKCMetric
-	alphaChans   []chan *Flow
-	jchfChans    []chan *kt.JCHF
-	inputChan    chan []*kt.JCHF
-	metricsChan  chan []*kt.JCHF
-	mapr         *CustomMapper
-	udrMapr      *UDRMapper
-	pgdb         *sql.DB
-	msgsc        chan *kt.Output
-	sinks        map[sinks.Sink]sinks.SinkImpl
-	format       formats.Formatter
-	formatRollup formats.Formatter
-	rollups      []rollup.Roller
-	doRollups    bool
-	doFilter     bool
-	filters      []filter.FilterWrapper
-	geo          *patricia.MMMap
-	asn          *patricia.MMMap
-	resolver     *resolv.Resolver
-	auth         *auth.Server
-	apic         *api.KentikApi
-	tooBig       chan int
-	tagMap       maps.TagMapper
-	vpc          vpc.VpcImpl
-	nfs          *flow.KentikDriver
-	rule         *rule.RuleSet
-	syslog       *syslog.KentikSyslog
-	http         *http.KentikHttpListener
-	enricher     *enrich.Enricher
-	logTee       chan string
-	authConfig   *auth.AuthConfig
+	log              logger.ContextL
+	config           *ktranslate.Config
+	registry         go_metrics.Registry
+	metrics          *KKCMetric
+	alphaChans       []chan *Flow
+	jchfChans        []chan *kt.JCHF
+	inputChan        chan []*kt.JCHF
+	metricsChan      chan []*kt.JCHF
+	mapr             *CustomMapper
+	udrMapr          *UDRMapper
+	pgdb             *sql.DB
+	msgsc            chan *kt.Output
+	sinks            map[sinks.Sink]sinks.SinkImpl
+	format           formats.Formatter
+	formatRollup     formats.Formatter
+	rollups          []rollup.Roller
+	doRollups        bool
+	doFilter         bool
+	filters          []filter.FilterWrapper
+	geo              *patricia.MMMap
+	asn              *patricia.MMMap
+	resolver         *resolv.Resolver
+	auth             *auth.Server
+	apic             *api.KentikApi
+	tooBig           chan int
+	tagMap           maps.TagMapper
+	vpc              vpc.VpcImpl
+	nfs              *flow.KentikDriver
+	rule             *rule.RuleSet
+	syslog           *syslog.KentikSyslog
+	http             *http.KentikHttpListener
+	enricher         *enrich.Enricher
+	logTee           chan string
+	authConfig       *auth.AuthConfig
+	configReloadChan chan *ktranslate.Config
 }
 
 type CustomMapper struct {
